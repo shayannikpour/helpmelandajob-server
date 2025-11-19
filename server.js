@@ -130,6 +130,44 @@ app.get('/user/resume', authenticate, async (req, res) => {
   }
 });
 
+app.post('/user/skills', authenticate, async (req, res) => {
+  const username = req.user.username;
+  const { skill } = req.body;
+
+  if (!skill || typeof skill !== 'string' || !skill.trim()) {
+    return res.status(400).json({ message: 'Skill is required' });
+  }
+
+  const trimmed = skill.trim();
+
+  try {
+    // Append the new skill to the existing skills array (create array if NULL)
+    await pool.query(
+      `UPDATE users
+       SET skills = COALESCE(skills, ARRAY[]::text[]) || ARRAY[$1]
+       WHERE username = $2`,
+      [trimmed, username]
+    );
+    res.json({ message: 'Skill added successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Database error' });
+  }
+});
+
+app.get('/user/skills', authenticate, async (req, res) => {
+  const username = req.user.username;
+
+  try {
+    const result = await pool.query('SELECT skills FROM users WHERE username = $1', [username]);
+    const skills = result.rows[0]?.skills || [];
+    res.json({ skills });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Database error' });
+  }
+});
+
 
 // Middleware
 function authenticate(req, res, next) {
