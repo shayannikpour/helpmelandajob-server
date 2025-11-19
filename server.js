@@ -25,7 +25,7 @@ pool.connect()
   .then(() => console.log('Connected to PostgreSQL database.'))
   .catch(err => console.error('Connection error', err.stack));
 
-// Create user table if not exists
+// Create users table if not exists
 pool.query(`
   CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
@@ -34,8 +34,24 @@ pool.query(`
     password TEXT,
     api_calls INTEGER DEFAULT 0
   );
-`).then(() => console.log('Users table ready'))
-  .catch(err => console.error(err));
+`).then(() => {
+  console.log('Users table ready');
+
+  // Add resume column if it doesn't exist
+  return pool.query(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS resume TEXT;
+  `);
+}).then(() => {
+  // Add skills column if it doesn't exist
+  return pool.query(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS skills TEXT[];
+  `);
+}).then(() => {
+  console.log('Resume and skills columns ready');
+}).catch(err => console.error(err));
+
 
 // Register
 app.post('/register', async (req, res) => {
@@ -82,10 +98,38 @@ app.post('/login', async (req, res) => {
 });
 
 app.post('/user/resume', authenticate, async (req, res) => {
-    const username = req.user.username; // from token
-    const { resume } = req.body;
-    // Save resume to DB for this user
+  const username = req.user.username;
+  const { resume } = req.body;
+
+  if (!resume) {
+    return res.status(400).json({ message: 'Resume text is required' });
+  }
+
+  try {
+    await pool.query(
+      'UPDATE users SET resume = $1 WHERE username = $2',
+      [resume, username]
+    );
+    res.json({ message: 'Resume saved successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Database error' });
+  }
 });
+
+app.get('/user/resume', authenticate, async (req, res) => {
+  const username = req.user.username;
+
+  try {
+    const result = await pool.query('SELECT resume FROM users WHERE username = $1', [username]);
+    const resume = result.rows[0]?.resume || '';
+    res.json({ resume });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Database error' });
+  }
+});
+
 
 // Middleware
 function authenticate(req, res, next) {
