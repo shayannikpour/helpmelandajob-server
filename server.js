@@ -117,6 +117,33 @@ app.post('/user/resume', authenticate, async (req, res) => {
   }
 });
 
+app.post("/ai/leetcode", async (req, res) => {
+  const { prompt } = req.body;
+  if (!prompt) return res.status(400).json({ error: "Prompt is required" });
+
+  try {
+    const aiRes = await fetch("https://teamv5.duckdns.org/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: [
+          { role: "system", content: "You output ONLY valid JSON." },
+          { role: "user", content: prompt }
+        ],
+        stop: ["```", "Here is", "\n\n"]
+      })
+    });
+
+    const aiJson = await aiRes.json();
+    res.status(aiRes.ok ? 200 : 502).json(aiJson);
+
+  } catch (err) {
+    console.error("AI LeetCode error:", err);
+    res.status(500).json({ error: "AI error", detail: err.message });
+  }
+});
+
+
 app.get('/user/resume', authenticate, async (req, res) => {
   const username = req.user.username;
 
