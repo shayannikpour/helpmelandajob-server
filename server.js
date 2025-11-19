@@ -26,31 +26,23 @@ pool.connect()
   .catch(err => console.error('Connection error', err.stack));
 
 // Create users table if not exists
-pool.query(`
-  CREATE TABLE IF NOT EXISTS users (
-    id SERIAL PRIMARY KEY,
-    isAdmin BOOLEAN DEFAULT false,
-    username TEXT UNIQUE,
-    password TEXT,
-    api_calls INTEGER DEFAULT 0
-  );
-`).then(() => {
-  console.log('Users table ready');
-
-  // Add resume column if it doesn't exist
-  return pool.query(`
-    ALTER TABLE users
-    ADD COLUMN IF NOT EXISTS resume TEXT;
-  `);
-}).then(() => {
-  // Add skills column if it doesn't exist
-  return pool.query(`
-    ALTER TABLE users
-    ADD COLUMN IF NOT EXISTS skills TEXT[];
-  `);
-}).then(() => {
-  console.log('Resume and skills columns ready');
-}).catch(err => console.error(err));
+   // Initialize DB schema (create table and ensure columns exist)
+   const initDb = pool.query(`
+     CREATE TABLE IF NOT EXISTS users (
+       id SERIAL PRIMARY KEY,
+       isAdmin BOOLEAN DEFAULT false,
+       username TEXT UNIQUE,
+       password TEXT,
+       api_calls INTEGER DEFAULT 0
+     );
+   `)
+     .then(() => pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS resume TEXT;`))
+     .then(() => pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS skills TEXT[];`))
+     .then(() => console.log('Database initialized'))
+     .catch(err => {
+       console.error('DB init error:', err);
+       process.exit(1);
+     });
 
 
 // Register
@@ -266,6 +258,11 @@ app.post('/ai/resume/improve', authenticate, async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+// Start server after DB init so columns exist before handling requests
+initDb.then(() => {
+  app.listen(PORT, () => {
+    console.log(`Server running at http://localhost:${PORT}`);
+  });
+}).catch(err => {
+  console.error('Initialization failed, server not started:', err);
 });
