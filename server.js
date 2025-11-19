@@ -5,10 +5,11 @@ const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
+require('dotenv').config();
 
 const app = express();
 const PORT = 3000;
-const SECRET = 'super_secret_key'; // change this later
+const SECRET = process.env.SECRET;
 
 app.use(cors({ origin: '*', credentials: true }));
 app.use(bodyParser.json());
@@ -16,7 +17,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 // Setup PostgreSQL
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://user_db_50z6_user:PVqWjbLdDi3MdX0ajWHV1cOvzvM9A45z@dpg-d4199tp8ocjs73cjgcug-a/user_db_50z6',
+  connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false } // Required by Render
 });
 
