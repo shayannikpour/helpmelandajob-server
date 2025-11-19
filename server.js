@@ -166,6 +166,41 @@ app.get('/call-ai', authenticate, async (req, res) => {
   }
 });
 
+// AI resume improvement proxy endpoint
+app.post('/ai/resume/improve', authenticate, async (req, res) => {
+  const { resume } = req.body;
+  if (!resume) return res.status(400).json({ message: 'Resume text is required' });
+
+  try {
+    // increment api_calls
+    await pool.query('UPDATE users SET api_calls = api_calls + 1 WHERE id = $1', [req.user.id]);
+
+    // Call external AI service
+    if (typeof fetch !== 'function') {
+      return res.status(500).json({ message: 'Server fetch is not available. Install node-fetch or upgrade Node.' });
+    }
+
+    const aiRes = await fetch('https://teamv5.duckdns.org/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [
+          { role: 'system', content: 'You are an expert resume enhancer. Suggest point form improvements for the following resume to make it more appealing to employers.' },
+          { role: 'user', content: `This is the resume:\n\n${resume}` }
+        ]
+      })
+    });
+
+    const aiJson = await aiRes.json().catch(() => ({}));
+
+    // Return AI response to the client
+    res.status(aiRes.ok ? 200 : 502).json({ ai: aiJson });
+  } catch (err) {
+    console.error('AI proxy error:', err);
+    res.status(500).json({ message: 'AI proxy error', error: err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
 });
