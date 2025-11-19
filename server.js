@@ -26,23 +26,31 @@ pool.connect()
   .catch(err => console.error('Connection error', err.stack));
 
 // Create users table if not exists
-   // Initialize DB schema (create table and ensure columns exist)
-   const initDb = pool.query(`
-     CREATE TABLE IF NOT EXISTS users (
-       id SERIAL PRIMARY KEY,
-       isAdmin BOOLEAN DEFAULT false,
-       username TEXT UNIQUE,
-       password TEXT,
-       api_calls INTEGER DEFAULT 0
-     );
-   `)
-     .then(() => pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS resume TEXT;`))
-     .then(() => pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS skills TEXT[];`))
-     .then(() => console.log('Database initialized'))
-     .catch(err => {
-       console.error('DB init error:', err);
-       process.exit(1);
-     });
+pool.query(`
+  CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    isAdmin BOOLEAN DEFAULT false,
+    username TEXT UNIQUE,
+    password TEXT,
+    api_calls INTEGER DEFAULT 0
+  );
+`).then(() => {
+  console.log('Users table ready');
+
+  // Add resume column if it doesn't exist
+  return pool.query(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS resume TEXT;
+  `);
+}).then(() => {
+  // Add skills column if it doesn't exist
+  return pool.query(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS skills TEXT[];
+  `);
+}).then(() => {
+  console.log('Resume and skills columns ready');
+}).catch(err => console.error(err));
 
 
 // Register
@@ -108,33 +116,6 @@ app.post('/user/resume', authenticate, async (req, res) => {
     res.status(500).json({ message: 'Database error' });
   }
 });
-
-app.post("/ai/leetcode", async (req, res) => {
-  const { prompt } = req.body;
-  if (!prompt) return res.status(400).json({ error: "Prompt is required" });
-
-  try {
-    const aiRes = await fetch("https://teamv5.duckdns.org/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        messages: [
-          { role: "system", content: "You output ONLY valid JSON." },
-          { role: "user", content: prompt }
-        ],
-        stop: ["```", "Here is", "\n\n"]
-      })
-    });
-
-    const aiJson = await aiRes.json();
-    res.status(aiRes.ok ? 200 : 502).json(aiJson);
-
-  } catch (err) {
-    console.error("AI LeetCode error:", err);
-    res.status(500).json({ error: "AI error", detail: err.message });
-  }
-});
-
 
 app.get('/user/resume', authenticate, async (req, res) => {
   const username = req.user.username;
@@ -258,11 +239,34 @@ app.post('/ai/resume/improve', authenticate, async (req, res) => {
   }
 });
 
-// Start server after DB init so columns exist before handling requests
-initDb.then(() => {
-  app.listen(PORT, () => {
-    console.log(`Server running at http://localhost:${PORT}`);
-  });
-}).catch(err => {
-  console.error('Initialization failed, server not started:', err);
+// LeetCode AI Endpoint
+app.post('/ai/leetcode', authenticate, async (req, res) => {
+  const { prompt } = req.body;
+  if (!prompt) return res.status(400).json({ error: "Prompt is required" });
+
+  try {
+    const aiRes = await fetch("https://teamv5.duckdns.org/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: [
+          { role: "system", content: "You output ONLY valid JSON." },
+          { role: "user", content: prompt }
+        ],
+        stop: ["```", "Here is", "\n\n"]
+      })
+    });
+
+    const aiJson = await aiRes.json();
+    res.status(aiRes.ok ? 200 : 502).json(aiJson);
+
+  } catch (err) {
+    console.error("AI LeetCode error:", err);
+    res.status(500).json({ error: "AI error", detail: err.message });
+  }
+});
+
+
+app.listen(PORT, () => {
+  console.log(`Server running at http://localhost:${PORT}`);
 });
