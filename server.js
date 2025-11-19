@@ -5,7 +5,6 @@ const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
-require('dotenv').config();
 
 const app = express();
 const PORT = 3000;
