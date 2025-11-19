@@ -81,6 +81,11 @@ app.post('/login', async (req, res) => {
   }
 });
 
+app.post('/user/resume', authenticateToken, async (req, res) => {
+    const username = req.user.username; // from token
+    const { resume } = req.body;
+    // Save resume to DB for this user
+});
 
 // Middleware
 function authenticate(req, res, next) {
