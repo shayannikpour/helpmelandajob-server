@@ -353,6 +353,21 @@ app.post('/ai/leetcode', authenticate, async (req, res) => {
   }
 });
 
+app.post('/jobs/search_user', authenticate, async (req, res) => {
+  try {
+    const response = await fetch("https://teamv5.duckdns.org/jobs/search_user", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req.body)
+    });
+
+    const data = await response.json();
+    res.status(response.ok ? 200 : 500).json(data);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal proxy error" });
+  }
+});
 
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
