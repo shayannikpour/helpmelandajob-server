@@ -9,6 +9,8 @@ const jwt = require('jsonwebtoken');
 const app = express();
 const PORT = 3000;
 const SECRET = process.env.SECRET;
+// Fixed application-wide API quota (do not store per-user quota in the database)
+const API_QUOTA = 20;
 
 app.use(cors({ origin: '*', credentials: true }));
 app.use(bodyParser.json());
@@ -106,6 +108,20 @@ app.post('/user/resume', authenticate, async (req, res) => {
   }
 
   try {
+    // enforce quota and increment (saving resume counts as an action)
+    const selectRes = await pool.query('SELECT id, api_calls FROM users WHERE username = $1', [username]);
+    const userId = selectRes.rows[0]?.id;
+    if (!userId) return res.status(404).json({ message: 'User not found' });
+
+    try {
+      await checkAndIncrement(userId);
+    } catch (err) {
+      if (err.code === 'QUOTA_EXCEEDED') {
+        return res.status(429).json({ message: `API quota exceeded (${err.count}/${API_QUOTA})` });
+      }
+      throw err;
+    }
+
     await pool.query(
       'UPDATE users SET resume = $1 WHERE username = $2',
       [resume, username]
@@ -139,9 +155,29 @@ app.post('/user/skills', authenticate, async (req, res) => {
   }
 
   const trimmed = skill.trim();
-
   try {
-    // Append the new skill to the existing skills array (create array if NULL)
+    // Load current skills to dedupe
+    const r = await pool.query('SELECT skills, id FROM users WHERE username = $1', [username]);
+    const row = r.rows[0] || {};
+    const userId = row.id;
+    const skills = Array.isArray(row.skills) ? row.skills : [];
+
+    const exists = skills.some(s => String(s).toLowerCase() === trimmed.toLowerCase());
+    if (exists) {
+      return res.json({ message: 'Skill already exists' });
+    }
+
+    // enforce quota and increment
+    try {
+      await checkAndIncrement(userId);
+    } catch (err) {
+      if (err.code === 'QUOTA_EXCEEDED') {
+        return res.status(429).json({ message: `API quota exceeded (${err.count}/${API_QUOTA})` });
+      }
+      throw err;
+    }
+
+    // Append the new skill
     await pool.query(
       `UPDATE users
        SET skills = COALESCE(skills, ARRAY[]::text[]) || ARRAY[$1]
@@ -182,6 +218,37 @@ function authenticate(req, res, next) {
   });
 }
 
+// Helper to increment a user's api_calls counter and return the updated count
+async function incrementApiCalls(userId) {
+  try {
+    const result = await pool.query(
+      'UPDATE users SET api_calls = COALESCE(api_calls, 0) + 1 WHERE id = $1 RETURNING api_calls',
+      [userId]
+    );
+    return result.rows[0]?.api_calls ?? null;
+  } catch (err) {
+    console.error('Failed to increment api_calls for user', userId, err);
+    throw err;
+  }
+}
+
+// Check quota then increment; throws an error with code 'QUOTA_EXCEEDED' if over limit
+async function checkAndIncrement(userId) {
+  try {
+    const cur = await pool.query('SELECT api_calls FROM users WHERE id = $1', [userId]);
+    const calls = cur.rows[0]?.api_calls ?? 0;
+    if (API_QUOTA >= 0 && calls >= API_QUOTA) {
+      const err = new Error('API quota exceeded');
+      err.code = 'QUOTA_EXCEEDED';
+      err.count = calls;
+      throw err;
+    }
+    return await incrementApiCalls(userId);
+  } catch (err) {
+    throw err;
+  }
+}
+
 // Verify token route
 app.get('/verify-token', authenticate, (req, res) => {
   res.json({ username: req.user.username });
@@ -193,12 +260,12 @@ app.get('/call-ai', authenticate, async (req, res) => {
     const result = await pool.query('SELECT api_calls FROM users WHERE id = $1', [req.user.id]);
     const calls = result.rows[0]?.api_calls ?? 0;
 
-    if (calls >= 20) {
-      return res.json({ message: 'You’ve used all 20 free API calls. Continuing in demo mode.' });
+    if (API_QUOTA >= 0 && calls >= API_QUOTA) {
+      return res.status(429).json({ message: `API quota exceeded (${calls}/${API_QUOTA})` });
     }
 
-    await pool.query('UPDATE users SET api_calls = api_calls + 1 WHERE id = $1', [req.user.id]);
-    res.json({ message: `AI call successful! (${calls + 1}/20 used)` });
+    const newCount = await incrementApiCalls(req.user.id);
+    res.json({ message: `AI call successful! (${newCount}/${API_QUOTA} used)` });
   } catch (err) {
     res.status(500).json({ message: 'Database error' });
   }
@@ -210,8 +277,15 @@ app.post('/ai/resume/improve', authenticate, async (req, res) => {
   if (!resume) return res.status(400).json({ message: 'Resume text is required' });
 
   try {
-    // increment api_calls
-    await pool.query('UPDATE users SET api_calls = api_calls + 1 WHERE id = $1', [req.user.id]);
+    // enforce quota and increment api_calls
+    try {
+      await checkAndIncrement(req.user.id);
+    } catch (err) {
+      if (err.code === 'QUOTA_EXCEEDED') {
+        return res.status(429).json({ message: `API quota exceeded (${err.count}/${API_QUOTA})` });
+      }
+      throw err;
+    }
 
     // Call external AI service
     if (typeof fetch !== 'function') {
