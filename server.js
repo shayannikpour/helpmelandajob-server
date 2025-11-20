@@ -332,6 +332,15 @@ app.post('/ai/leetcode', authenticate, async (req, res) => {
   if (!prompt) return res.status(400).json({ error: "Prompt is required" });
 
   try {
+    await checkAndIncrement(req.user.id);
+  } catch (err) {
+    if (err.code === 'QUOTA_EXCEEDED') {
+      return res.status(429).json({ message: `API quota exceeded (${err.count}/${API_QUOTA})` });
+    }
+    throw err;
+  }
+
+  try {
     const aiRes = await fetch("https://teamv5.duckdns.org/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
