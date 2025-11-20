@@ -54,6 +54,18 @@ pool.query(`
   console.log('Resume and skills columns ready');
 }).catch(err => console.error(err));
 
+pool.query(`
+  CREATE TABLE IF NOT EXISTS endpoints (
+    id SERIAL PRIMARY KEY,
+    method TEXT,
+    endpoint TEXT,
+    requests INTEGER DEFAULT 0
+  );
+   `).then(() => {
+    console.log('Endpoints table ready');
+}).catch(err => console.error('Endpoints table error', err));
+
+
 
 // Register
 app.post('/register', async (req, res) => {
