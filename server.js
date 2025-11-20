@@ -355,7 +355,7 @@ app.post('/ai/leetcode', authenticate, async (req, res) => {
 
 app.post('/jobs/search_user', authenticate, async (req, res) => {
   try {
-    const response = await fetch("https://teamv5.duckdns.org/jobs/search_user", {
+    const response = await fetch("http://167.172.116.168:8000/jobs/search_user", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req.body)
