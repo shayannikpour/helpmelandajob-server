@@ -146,6 +146,19 @@ app.get('/user/resume', authenticate, async (req, res) => {
   }
 });
 
+app.get('/user/api_calls', authenticate, async (req, res) => {
+  const username = req.user.username;
+
+  try {
+    const result = await pool.query('SELECT api_calls FROM users WHERE username = $1', [username]);
+    const api_calls = Number(result.rows[0]?.api_calls ?? 0);
+    res.json({ api_calls });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Database error' });
+  }
+});
+
 app.post('/user/skills', authenticate, async (req, res) => {
   const username = req.user.username;
   const { skill } = req.body;
