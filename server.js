@@ -101,6 +101,22 @@ app.patch('/admin/users/:id/isAdmin', authenticate, async (req, res) => {
   }
 });
 
+async function incrementEndpoint(method, endpoint) {
+  try {
+    await pool.query(
+      `
+      UPDATE endpoints
+      SET requests = requests + 1
+      WHERE method = $1 AND endpoint = $2
+      `,
+      [method, endpoint]
+    );
+  } catch (err) {
+    console.error("Failed to update endpoint usage:", err);
+  }
+}
+
+
 
 
 // Register
@@ -387,6 +403,9 @@ app.post('/ai/resume/improve', authenticate, async (req, res) => {
 
 // LeetCode AI Endpoint
 app.post('/ai/leetcode', authenticate, async (req, res) => {
+
+  incrementEndpoint("POST", "/ai/leetcode");
+
   const { prompt } = req.body;
   if (!prompt) return res.status(400).json({ error: "Prompt is required" });
 
@@ -464,45 +483,44 @@ app.get('/admin/users', authenticate, async (req, res) => {
 });
 
 
-// ---- SMART ENDPOINT TRACKER WITH PARAM SUPPORT ----
-app.use(async (req, res, next) => {
-  try {
-    const method = req.method;
-    const path = req.path; // Raw path
+// app.use(async (req, res, next) => {
+//   try {
+//     const method = req.method;
+//     const path = req.path; // Raw path
 
-    // Fetch all endpoint patterns once
-    const result = await pool.query(`
-      SELECT id, method, endpoint FROM endpoints
-    `);
+//     // Fetch all endpoint patterns once
+//     const result = await pool.query(`
+//       SELECT id, method, endpoint FROM endpoints
+//     `);
 
-    let matchedId = null;
+//     let matchedId = null;
 
-    for (const ep of result.rows) {
-      if (ep.method !== method) continue;
+//     for (const ep of result.rows) {
+//       if (ep.method !== method) continue;
 
       
-      const pattern = ep.endpoint.replace(/:[^/]+/g, "[^/]+");
-      const regex = new RegExp(`^${pattern}$`);
+//       const pattern = ep.endpoint.replace(/:[^/]+/g, "[^/]+");
+//       const regex = new RegExp(`^${pattern}$`);
 
-      if (regex.test(path)) {
-        matchedId = ep.id;
-        break;
-      }
-    }
+//       if (regex.test(path)) {
+//         matchedId = ep.id;
+//         break;
+//       }
+//     }
 
-    if (matchedId) {
-      await pool.query(
-        `UPDATE endpoints SET requests = requests + 1 WHERE id = $1`,
-        [matchedId]
-      );
-    }
+//     if (matchedId) {
+//       await pool.query(
+//         `UPDATE endpoints SET requests = requests + 1 WHERE id = $1`,
+//         [matchedId]
+//       );
+//     }
 
-  } catch (err) {
-    console.error("Endpoint tracking error:", err);
-  }
+//   } catch (err) {
+//     console.error("Endpoint tracking error:", err);
+//   }
 
-  next();
-});
+//   next();
+// });
 
 
 
