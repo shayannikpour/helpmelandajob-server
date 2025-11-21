@@ -34,7 +34,7 @@ pool.connect()
 pool.query(`
   CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
-    isAdmin BOOLEAN DEFAULT false,
+    isadmin BOOLEAN DEFAULT false,
     username TEXT UNIQUE,
     password TEXT,
     api_calls INTEGER DEFAULT 0
