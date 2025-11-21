@@ -378,6 +378,35 @@ app.post('/jobs/search_user', authenticate, async (req, res) => {
   }
 });
 
+
+app.get('/admin/users', authenticate, async (req, res) => {
+  try {
+    
+    const adminCheck = await pool.query(
+      'SELECT isAdmin FROM users WHERE id = $1',
+      [req.user.id]
+    );
+
+    const isAdmin = adminCheck.rows[0]?.isadmin;
+    if (!isAdmin) {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+
+    
+    const result = await pool.query(
+      `SELECT username, api_calls
+       FROM users
+       ORDER BY username ASC`
+    );
+
+    res.json({ users: result.rows });
+
+  } catch (err) {
+    console.error('ADMIN /admin/users ERROR:', err);
+    res.status(500).json({ message: 'Database error' });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
 });
