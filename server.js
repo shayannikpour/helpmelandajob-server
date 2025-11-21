@@ -369,6 +369,35 @@ app.post('/jobs/search_user', authenticate, async (req, res) => {
   }
 });
 
+app.delete('/user/skills', authenticate, async (req, res) => {
+  const username = req.user.username;
+  const { skill } = req.body;
+
+  if (!skill) {
+    return res.status(400).json({ message: 'Skill is required' });
+  }
+
+  try {
+    const result = await pool.query(
+      `UPDATE users
+       SET skills = array_remove(skills, $1)
+       WHERE username = $2
+       RETURNING skills`,
+      [skill, username]
+    );
+
+    return res.json({
+      message: "Skill deleted successfully",
+      skills: result.rows[0].skills || []
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Database error" });
+  }
+});
+
+
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
 });
