@@ -54,6 +54,49 @@ pool.query(`
   console.log('Resume and skills columns ready');
 }).catch(err => console.error(err));
 
+pool.query(`
+  CREATE TABLE IF NOT EXISTS endpoints (
+    id SERIAL PRIMARY KEY,
+    method TEXT,
+    endpoint TEXT,
+    requests INTEGER DEFAULT 0
+  );
+   `).then(() => {
+    console.log('Endpoints table ready');
+}).catch(err => console.error('Endpoints table error', err));
+
+app.delete('/admin/users/:id', authenticate, async (req, res) => {
+  if (!req.user.isAdmin) {
+    return res.status(403).json({ message: 'Admin access required' });
+  }
+  const userId = req.params.id;
+  try {
+    await pool.query('DELETE FROM users WHERE id = $1', [userId]);
+    res.json({ message: 'User deleted successfully' });
+  }
+  catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Database error' });
+  }
+});
+
+app.patch('/admin/users/:id/isAdmin', authenticate, async (req, res) => {
+  if (!req.user.isAdmin) {
+    return res.status(403).json({ message: 'Admin access required' });
+  }
+  const userId = req.params.id;
+  const { isAdmin } = req.body;
+  try {
+    await pool.query('UPDATE users SET isAdmin = $1 WHERE id = $2', [isAdmin, userId]);
+    res.json({ message: 'User admin status updated successfully' });
+  }
+  catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Database error' });
+  }
+});
+
+
 
 // Register
 app.post('/register', async (req, res) => {
