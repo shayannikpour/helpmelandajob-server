@@ -464,6 +464,46 @@ app.get('/admin/users', authenticate, async (req, res) => {
 });
 
 
+// ---- SMART ENDPOINT TRACKER WITH PARAM SUPPORT ----
+app.use(async (req, res, next) => {
+  try {
+    const method = req.method;
+    const path = req.path; // Raw path
+
+    // Fetch all endpoint patterns once
+    const result = await pool.query(`
+      SELECT id, method, endpoint FROM endpoints
+    `);
+
+    let matchedId = null;
+
+    for (const ep of result.rows) {
+      if (ep.method !== method) continue;
+
+      
+      const pattern = ep.endpoint.replace(/:[^/]+/g, "[^/]+");
+      const regex = new RegExp(`^${pattern}$`);
+
+      if (regex.test(path)) {
+        matchedId = ep.id;
+        break;
+      }
+    }
+
+    if (matchedId) {
+      await pool.query(
+        `UPDATE endpoints SET requests = requests + 1 WHERE id = $1`,
+        [matchedId]
+      );
+    }
+
+  } catch (err) {
+    console.error("Endpoint tracking error:", err);
+  }
+
+  next();
+});
+
 
 
 
