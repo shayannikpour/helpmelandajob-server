@@ -5,6 +5,8 @@ const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
+
 
 const app = express();
 const PORT = 3000;
@@ -15,6 +17,7 @@ const API_QUOTA = 20;
 app.use(cors({ origin: '*', credentials: true }));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // Setup PostgreSQL
 const pool = new Pool({
@@ -54,6 +57,49 @@ pool.query(`
   console.log('Resume and skills columns ready');
 }).catch(err => console.error(err));
 
+pool.query(`
+  CREATE TABLE IF NOT EXISTS endpoints (
+    id SERIAL PRIMARY KEY,
+    method TEXT,
+    endpoint TEXT,
+    requests INTEGER DEFAULT 0
+  );
+   `).then(() => {
+    console.log('Endpoints table ready');
+}).catch(err => console.error('Endpoints table error', err));
+
+app.delete('/admin/users/:id', authenticate, async (req, res) => {
+  if (!req.user.isAdmin) {
+    return res.status(403).json({ message: 'Admin access required' });
+  }
+  const userId = req.params.id;
+  try {
+    await pool.query('DELETE FROM users WHERE id = $1', [userId]);
+    res.json({ message: 'User deleted successfully' });
+  }
+  catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Database error' });
+  }
+});
+
+app.patch('/admin/users/:id/isAdmin', authenticate, async (req, res) => {
+  if (!req.user.isAdmin) {
+    return res.status(403).json({ message: 'Admin access required' });
+  }
+  const userId = req.params.id;
+  const { isAdmin } = req.body;
+  try {
+    await pool.query('UPDATE users SET isAdmin = $1 WHERE id = $2', [isAdmin, userId]);
+    res.json({ message: 'User admin status updated successfully' });
+  }
+  catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Database error' });
+  }
+});
+
+
 
 // Register
 app.post('/register', async (req, res) => {
@@ -88,6 +134,8 @@ app.post('/login', async (req, res) => {
     if (!match) return res.status(400).json({ message: 'Invalid username or password' });
 
     const token = jwt.sign({ id: user.id, username: user.username }, SECRET, { expiresIn: '1h' });
+
+    res.cookie('token', token, { httpOnly: true, maxAge: 3600000 });
 
     res.json({
       token,
@@ -332,6 +380,15 @@ app.post('/ai/leetcode', authenticate, async (req, res) => {
   if (!prompt) return res.status(400).json({ error: "Prompt is required" });
 
   try {
+    await checkAndIncrement(req.user.id);
+  } catch (err) {
+    if (err.code === 'QUOTA_EXCEEDED') {
+      return res.status(429).json({ message: `API quota exceeded (${err.count}/${API_QUOTA})` });
+    }
+    throw err;
+  }
+
+  try {
     const aiRes = await fetch("https://teamv5.duckdns.org/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -368,6 +425,66 @@ app.post('/jobs/search_user', authenticate, async (req, res) => {
     res.status(500).json({ error: "Internal proxy error" });
   }
 });
+
+
+app.get('/admin/users', authenticate, async (req, res) => {
+  try {
+    
+    const adminCheck = await pool.query(
+      'SELECT isAdmin FROM users WHERE id = $1',
+      [req.user.id]
+    );
+
+    const isAdmin = adminCheck.rows[0]?.isadmin;
+    if (!isAdmin) {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+
+    
+    const result = await pool.query(
+      `SELECT username, api_calls
+       FROM users
+       ORDER BY username ASC`
+    );
+
+    res.json({ users: result.rows });
+
+  } catch (err) {
+    console.error('ADMIN /admin/users ERROR:', err);
+    res.status(500).json({ message: 'Database error' });
+  }
+});
+
+
+
+
+app.get('/admin/endpoints', authenticate, async (req, res) => {
+  try {
+    
+    const adminCheck = await pool.query(
+      'SELECT isAdmin FROM users WHERE id = $1',
+      [req.user.id]
+    );
+
+    if (!adminCheck.rows[0]?.isadmin) {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+
+    
+    const result = await pool.query(`
+      SELECT id, method, endpoint, requests
+      FROM endpoints
+      ORDER BY id ASC
+    `);
+
+    res.json({ endpoints: result.rows });
+
+  } catch (err) {
+    console.error("ADMIN /admin/endpoints ERROR:", err);
+    res.status(500).json({ message: "Database error" });
+  }
+});
+
 
 app.delete('/user/skills', authenticate, async (req, res) => {
   const username = req.user.username;
