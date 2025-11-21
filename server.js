@@ -450,6 +450,37 @@ app.get('/admin/users', authenticate, async (req, res) => {
   }
 });
 
+
+
+
+app.get('/admin/endpoints', authenticate, async (req, res) => {
+  try {
+    
+    const adminCheck = await pool.query(
+      'SELECT isAdmin FROM users WHERE id = $1',
+      [req.user.id]
+    );
+
+    if (!adminCheck.rows[0]?.isadmin) {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+
+    
+    const result = await pool.query(`
+      SELECT id, method, endpoint, requests
+      FROM endpoints
+      ORDER BY id ASC
+    `);
+
+    res.json({ endpoints: result.rows });
+
+  } catch (err) {
+    console.error("ADMIN /admin/endpoints ERROR:", err);
+    res.status(500).json({ message: "Database error" });
+  }
+});
+
+
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
 });
