@@ -5,6 +5,8 @@ const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
+
 
 const app = express();
 const PORT = 3000;
@@ -15,6 +17,7 @@ const API_QUOTA = 20;
 app.use(cors({ origin: '*', credentials: true }));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // Setup PostgreSQL
 const pool = new Pool({
@@ -131,6 +134,8 @@ app.post('/login', async (req, res) => {
     if (!match) return res.status(400).json({ message: 'Invalid username or password' });
 
     const token = jwt.sign({ id: user.id, username: user.username }, SECRET, { expiresIn: '1h' });
+
+    res.cookie('token', token, { httpOnly: true, maxAge: 3600000 });
 
     res.json({
       token,
