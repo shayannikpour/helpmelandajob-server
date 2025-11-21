@@ -175,6 +175,10 @@ app.post('/login', async (req, res) => {
 });
 
 app.post('/user/resume', authenticate, async (req, res) => {
+  incrementEndpoint("POST", "/user/resume");
+
+
+
   const username = req.user.username;
   const { resume } = req.body;
 
@@ -209,6 +213,9 @@ app.post('/user/resume', authenticate, async (req, res) => {
 });
 
 app.get('/user/resume', authenticate, async (req, res) => {
+  incrementEndpoint("GET", "/user/resume");
+
+
   const username = req.user.username;
 
   try {
@@ -235,6 +242,9 @@ app.get('/user/api_calls', authenticate, async (req, res) => {
 });
 
 app.post('/user/skills', authenticate, async (req, res) => {
+  incrementEndpoint("POST", "/user/skills");
+
+
   const username = req.user.username;
   const { skill } = req.body;
 
@@ -280,6 +290,8 @@ app.post('/user/skills', authenticate, async (req, res) => {
 });
 
 app.get('/user/skills', authenticate, async (req, res) => {
+  incrementEndpoint("GET", "/user/skills");
+
   const username = req.user.username;
 
   try {
@@ -361,6 +373,9 @@ app.get('/call-ai', authenticate, async (req, res) => {
 
 // AI resume improvement proxy endpoint
 app.post('/ai/resume/improve', authenticate, async (req, res) => {
+  incrementEndpoint("POST", "/ai/resume/improve");
+
+
   const { resume } = req.body;
   if (!resume) return res.status(400).json({ message: 'Resume text is required' });
 
@@ -441,6 +456,8 @@ app.post('/ai/leetcode', authenticate, async (req, res) => {
 });
 
 app.post('/jobs/search_user', authenticate, async (req, res) => {
+  incrementEndpoint("POST", "/jobs/search_user");
+
   try {
     const response = await fetch("https://teamv5.duckdns.org/jobs/search_user", {
       method: "POST",
@@ -555,6 +572,8 @@ app.get('/admin/endpoints', authenticate, async (req, res) => {
 
 
 app.delete('/user/skills', authenticate, async (req, res) => {
+  incrementEndpoint("DELETE", "/admin/users/:id");
+
   const username = req.user.username;
   const { skill } = req.body;
 
