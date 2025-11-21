@@ -449,7 +449,7 @@ app.get('/admin/users', authenticate, async (req, res) => {
     }
 
     const result = await pool.query(`
-      SELECT id, username, api_calls
+      SELECT id, username, api_calls, isadmin
       FROM users
       ORDER BY username ASC
     `);
@@ -461,6 +461,7 @@ app.get('/admin/users', authenticate, async (req, res) => {
     res.status(500).json({ message: "Database error" });
   }
 });
+
 
 
 
