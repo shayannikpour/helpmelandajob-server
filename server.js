@@ -18,6 +18,7 @@ app.use(cors({ origin: '*', credentials: true }));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cookieParser());
+app.use(express.json());
 
 // Setup PostgreSQL
 const pool = new Pool({
