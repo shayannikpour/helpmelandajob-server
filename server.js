@@ -69,6 +69,7 @@ pool.query(`
 }).catch(err => console.error('Endpoints table error', err));
 
 app.delete('/admin/users/:id', authenticate, async (req, res) => {
+  console.log(req.user.isAdmin);
   if (!req.user.isAdmin) {
     return res.status(403).json({ message: 'Admin access required' });
   }
