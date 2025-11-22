@@ -18,6 +18,7 @@ app.use(cors({ origin: '*', credentials: true }));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cookieParser());
+app.use(express.json());
 
 // Setup PostgreSQL
 const pool = new Pool({
@@ -34,7 +35,7 @@ pool.connect()
 pool.query(`
   CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
-    isAdmin BOOLEAN DEFAULT false,
+    isadmin BOOLEAN DEFAULT false,
     username TEXT UNIQUE,
     password TEXT,
     api_calls INTEGER DEFAULT 0
@@ -69,6 +70,7 @@ pool.query(`
 }).catch(err => console.error('Endpoints table error', err));
 
 app.delete('/admin/users/:id', authenticate, async (req, res) => {
+  console.log(req.user.isAdmin);
   if (!req.user.isAdmin) {
     return res.status(403).json({ message: 'Admin access required' });
   }
@@ -98,6 +100,22 @@ app.patch('/admin/users/:id/isAdmin', authenticate, async (req, res) => {
     res.status(500).json({ message: 'Database error' });
   }
 });
+
+async function incrementEndpoint(method, endpoint) {
+  try {
+    await pool.query(
+      `
+      UPDATE endpoints
+      SET requests = requests + 1
+      WHERE method = $1 AND endpoint = $2
+      `,
+      [method, endpoint]
+    );
+  } catch (err) {
+    console.error("Failed to update endpoint usage:", err);
+  }
+}
+
 
 
 
@@ -133,7 +151,16 @@ app.post('/login', async (req, res) => {
     const match = await bcrypt.compare(password, user.password);
     if (!match) return res.status(400).json({ message: 'Invalid username or password' });
 
-    const token = jwt.sign({ id: user.id, username: user.username }, SECRET, { expiresIn: '1h' });
+    const token = jwt.sign(
+      {
+        id: user.id,
+        username: user.username,
+        isAdmin: user.isadmin   
+      },
+      SECRET,
+      { expiresIn: '1h' }
+    );
+
 
     res.cookie('token', token, { httpOnly: true, maxAge: 3600000 });
 
@@ -148,6 +175,10 @@ app.post('/login', async (req, res) => {
 });
 
 app.post('/user/resume', authenticate, async (req, res) => {
+  incrementEndpoint("POST", "/user/resume");
+
+
+
   const username = req.user.username;
   const { resume } = req.body;
 
@@ -182,6 +213,9 @@ app.post('/user/resume', authenticate, async (req, res) => {
 });
 
 app.get('/user/resume', authenticate, async (req, res) => {
+  incrementEndpoint("GET", "/user/resume");
+
+
   const username = req.user.username;
 
   try {
@@ -208,6 +242,9 @@ app.get('/user/api_calls', authenticate, async (req, res) => {
 });
 
 app.post('/user/skills', authenticate, async (req, res) => {
+  incrementEndpoint("POST", "/user/skills");
+
+
   const username = req.user.username;
   const { skill } = req.body;
 
@@ -253,6 +290,8 @@ app.post('/user/skills', authenticate, async (req, res) => {
 });
 
 app.get('/user/skills', authenticate, async (req, res) => {
+  incrementEndpoint("GET", "/user/skills");
+
   const username = req.user.username;
 
   try {
@@ -334,6 +373,9 @@ app.get('/call-ai', authenticate, async (req, res) => {
 
 // AI resume improvement proxy endpoint
 app.post('/ai/resume/improve', authenticate, async (req, res) => {
+  incrementEndpoint("POST", "/ai/resume/improve");
+
+
   const { resume } = req.body;
   if (!resume) return res.status(400).json({ message: 'Resume text is required' });
 
@@ -376,6 +418,9 @@ app.post('/ai/resume/improve', authenticate, async (req, res) => {
 
 // LeetCode AI Endpoint
 app.post('/ai/leetcode', authenticate, async (req, res) => {
+
+  incrementEndpoint("POST", "/ai/leetcode");
+
   const { prompt } = req.body;
   if (!prompt) return res.status(400).json({ error: "Prompt is required" });
 
@@ -411,6 +456,8 @@ app.post('/ai/leetcode', authenticate, async (req, res) => {
 });
 
 app.post('/jobs/search_user', authenticate, async (req, res) => {
+  incrementEndpoint("POST", "/jobs/search_user");
+
   try {
     const response = await fetch("https://teamv5.duckdns.org/v1/jobs/search_user", {
       method: "POST",
@@ -429,31 +476,69 @@ app.post('/jobs/search_user', authenticate, async (req, res) => {
 
 app.get('/admin/users', authenticate, async (req, res) => {
   try {
-    
     const adminCheck = await pool.query(
       'SELECT isAdmin FROM users WHERE id = $1',
       [req.user.id]
     );
 
-    const isAdmin = adminCheck.rows[0]?.isadmin;
-    if (!isAdmin) {
+    if (!adminCheck.rows[0]?.isadmin) {
       return res.status(403).json({ message: "Admin access required" });
     }
 
-    
-    const result = await pool.query(
-      `SELECT username, api_calls
-       FROM users
-       ORDER BY username ASC`
-    );
+    const result = await pool.query(`
+      SELECT id, username, api_calls, isadmin
+      FROM users
+      ORDER BY username ASC
+    `);
 
     res.json({ users: result.rows });
 
   } catch (err) {
-    console.error('ADMIN /admin/users ERROR:', err);
-    res.status(500).json({ message: 'Database error' });
+    console.error("ADMIN /admin/users ERROR:", err);
+    res.status(500).json({ message: "Database error" });
   }
 });
+
+
+// app.use(async (req, res, next) => {
+//   try {
+//     const method = req.method;
+//     const path = req.path; // Raw path
+
+//     // Fetch all endpoint patterns once
+//     const result = await pool.query(`
+//       SELECT id, method, endpoint FROM endpoints
+//     `);
+
+//     let matchedId = null;
+
+//     for (const ep of result.rows) {
+//       if (ep.method !== method) continue;
+
+      
+//       const pattern = ep.endpoint.replace(/:[^/]+/g, "[^/]+");
+//       const regex = new RegExp(`^${pattern}$`);
+
+//       if (regex.test(path)) {
+//         matchedId = ep.id;
+//         break;
+//       }
+//     }
+
+//     if (matchedId) {
+//       await pool.query(
+//         `UPDATE endpoints SET requests = requests + 1 WHERE id = $1`,
+//         [matchedId]
+//       );
+//     }
+
+//   } catch (err) {
+//     console.error("Endpoint tracking error:", err);
+//   }
+
+//   next();
+// });
+
 
 
 
@@ -487,6 +572,8 @@ app.get('/admin/endpoints', authenticate, async (req, res) => {
 
 
 app.delete('/user/skills', authenticate, async (req, res) => {
+  incrementEndpoint("DELETE", "/admin/users/:id");
+
   const username = req.user.username;
   const { skill } = req.body;
 
