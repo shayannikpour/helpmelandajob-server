@@ -38,7 +38,6 @@ pool.query(`
     isadmin BOOLEAN DEFAULT false,
     username TEXT UNIQUE,
     password TEXT,
-    api_calls INTEGER DEFAULT 0
   );
 `).then(() => {
   console.log('Users table ready');
@@ -68,6 +67,16 @@ pool.query(`
    `).then(() => {
     console.log('Endpoints table ready');
 }).catch(err => console.error('Endpoints table error', err));
+
+pool.query(`
+  CREATE TABLE IF NOT EXISTS api_calls (
+    id SERIAL PRIMARY KEY,
+    FOREIGN KEY user_id INTEGER REFERENCES users(id),
+    api_calls INTEGER DEFAULT 0
+  );
+   `).then(() => {
+    console.log('Api call table ready');
+}).catch(err => console.error('Api call table error', err));
 
 app.delete('/admin/users/:id', authenticate, async (req, res) => {
   console.log(req.user.isAdmin);
