@@ -1,4 +1,4 @@
-// server.js
+import { STRINGS } from "../lang/en/user.js"
 const express = require('express');
 const bodyParser = require('body-parser');
 const bcrypt = require('bcryptjs');
@@ -6,6 +6,7 @@ const { Pool } = require('pg');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 // const cookieParser = require('cookie-parser');
+
 
 
 const app = express();
@@ -82,32 +83,32 @@ pool.query(`
 app.delete('/admin/users/:id', authenticate, async (req, res) => {
   console.log(req.user.isAdmin);
   if (!req.user.isAdmin) {
-    return res.status(403).json({ message: 'Admin access required' });
+  return res.status(403).json({ message: STRINGS.ADMINREQUIRED });
   }
   const userId = req.params.id;
   try {
     await pool.query('DELETE FROM users WHERE id = $1', [userId]);
-    res.json({ message: 'User deleted successfully' });
+    res.json({ message: STRINGS.USER_DELETED });
   }
   catch (err) {
     console.error(err);
-    res.status(500).json({ message: 'Database error' });
+    res.status(500).json({ message: STRINGS.DATABASE_ERROR});
   }
 });
 
 app.patch('/admin/users/:id/isAdmin', authenticate, async (req, res) => {
   if (!req.user.isAdmin) {
-    return res.status(403).json({ message: 'Admin access required' });
+    return res.status(403).json({ message: STRINGS.ADMIN_REQUIRED });
   }
   const userId = req.params.id;
   const { isAdmin } = req.body;
   try {
     await pool.query('UPDATE users SET isadmin = $1 WHERE id = $2', [isAdmin, userId]);
-    res.json({ message: 'User admin status updated successfully' });
+    res.json({ message: STRINGS.ADMIN_STATUS_UPDATED });
   }
   catch (err) {
     console.error(err);
-    res.status(500).json({ message: 'Database error' });
+    res.status(500).json({ message: STRINGS.DATABASE_ERROR });
   }
 });
 
@@ -153,14 +154,14 @@ app.post('/register', async (req, res) => {
       [userId]
     );
 
-    res.json({ message: 'User created successfully' });
+    res.json({ message: STRINGS.USER_CREATED });
 
   } catch (err) {
     console.error("REGISTER ERROR:", err);
     if (err.message.includes('duplicate key')) {
-      return res.status(400).json({ message: 'Username already exists' });
+      return res.status(400).json({ message: STRINGS.USERNAME_TAKEN });
     }
-    res.status(500).json({ message: 'Database error', error: err.message });
+    res.status(500).json({ message: STRINGS.DATABASE_ERROR, error: err.message });
   }
 });
 
@@ -172,10 +173,10 @@ app.post('/login', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
     const user = result.rows[0];
-    if (!user) return res.status(400).json({ message: 'Invalid username or password' });
+    if (!user) return res.status(400).json({ message: STRINGS.INVALID_CREDENTIALS });
 
     const match = await bcrypt.compare(password, user.password);
-    if (!match) return res.status(400).json({ message: 'Invalid username or password' });
+    if (!match) return res.status(400).json({ message: STRINGS.INVALID_CREDENTIALS });
 
     const token = jwt.sign(
       {
@@ -196,7 +197,7 @@ app.post('/login', async (req, res) => {
       isAdmin: user.isadmin
     });
   } catch (err) {
-    res.status(500).json({ message: 'Database error' });
+    res.status(500).json({ message: STRINGS.DATABASE_ERROR });
   }
 });
 
@@ -207,20 +208,20 @@ app.post('/user/resume', authenticate, async (req, res) => {
   const { resume } = req.body;
 
   if (!resume) {
-    return res.status(400).json({ message: 'Resume text is required' });
+    return res.status(400).json({ message: STRINGS.RESUME_TEXT_REQUIRED });
   }
 
   try {
     // enforce quota and increment (saving resume counts as an action)
     const selectRes = await pool.query('SELECT id FROM users WHERE username = $1', [username]);
     const userId = selectRes.rows[0]?.id;
-    if (!userId) return res.status(404).json({ message: 'User not found' });
+    if (!userId) return res.status(404).json({ message: STRINGS.USER_NOT_FOUND });
 
     try {
       await checkAndIncrement(userId);
     } catch (err) {
       if (err.code === 'QUOTA_EXCEEDED') {
-        return res.status(429).json({ message: `API quota exceeded (${err.count}/${API_QUOTA})` });
+        return res.status(429).json({ message: `${STRINGS.QUOTA_EXCEEDED} (${err.count}/${API_QUOTA})` });
       }
       throw err;
     }
@@ -229,10 +230,10 @@ app.post('/user/resume', authenticate, async (req, res) => {
       'UPDATE users SET resume = $1 WHERE username = $2',
       [resume, username]
     );
-    res.json({ message: 'Resume saved successfully' });
+    res.json({ message: STRINGS.RESUME_SAVED });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: 'Database error' });
+    res.status(500).json({ message: STRINGS.DATABASE_ERROR } );
   }
 });
 
@@ -248,7 +249,7 @@ app.get('/user/resume', authenticate, async (req, res) => {
     res.json({ resume });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: 'Database error' });
+    res.status(500).json({ message: STRINGS.DATABASE_ERROR });
   }
 });
 
@@ -262,7 +263,7 @@ app.get('/user/api_calls', authenticate, async (req, res) => {
     res.json({ api_calls });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: 'Database error' });
+    res.status(500).json({ message: STRINGS.DATABASE_ERROR }  );
   }
 });
 
@@ -274,7 +275,7 @@ app.post('/user/skills', authenticate, async (req, res) => {
   const { skill } = req.body;
 
   if (!skill || typeof skill !== 'string' || !skill.trim()) {
-    return res.status(400).json({ message: 'Skill is required' });
+    return res.status(400).json({ message: STRINGS.SKILL_REQUIRED });
   }
 
   const trimmed = skill.trim();
@@ -287,7 +288,7 @@ app.post('/user/skills', authenticate, async (req, res) => {
 
     const exists = skills.some(s => String(s).toLowerCase() === trimmed.toLowerCase());
     if (exists) {
-      return res.json({ message: 'Skill already exists' });
+      return res.json({ message: STRINGS.SKILL_EXISTS });
     }
 
     // enforce quota and increment
@@ -295,7 +296,7 @@ app.post('/user/skills', authenticate, async (req, res) => {
       await checkAndIncrement(userId);
     } catch (err) {
       if (err.code === 'QUOTA_EXCEEDED') {
-        return res.status(429).json({ message: `API quota exceeded (${err.count}/${API_QUOTA})` });
+        return res.status(429).json({ message: `${STRINGS.QUOTA_EXCEEDED} (${err.count}/${API_QUOTA})` });
       }
       throw err;
     }
@@ -307,10 +308,10 @@ app.post('/user/skills', authenticate, async (req, res) => {
        WHERE username = $2`,
       [trimmed, username]
     );
-    res.json({ message: 'Skill added successfully' });
+    res.json({ message: STRINGS.SKILL_ADDED  });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: 'Database error' });
+    res.status(500).json({ message: STRINGS.DATABASE_ERROR });
   }
 });
 
@@ -325,7 +326,7 @@ app.get('/user/skills', authenticate, async (req, res) => {
     res.json({ skills });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: 'Database error' });
+    res.status(500).json({ message: STRINGS.DATABASE_ERROR });
   }
 });
 
@@ -333,11 +334,11 @@ app.get('/user/skills', authenticate, async (req, res) => {
 // Middleware
 function authenticate(req, res, next) {
   const authHeader = req.headers.authorization;
-  if (!authHeader) return res.status(401).json({ message: 'Missing token' });
+  if (!authHeader) return res.status(401).json({ message: STRINGS.MISSING_TOKEN });
 
   const token = authHeader.split(' ')[1];
   jwt.verify(token, SECRET, (err, user) => {
-    if (err) return res.status(403).json({ message: 'Invalid or expired token' });
+    if (err) return res.status(403).json({ message: STRINGS.INVALID_TOKEN });
     req.user = user;
     next();
   });
@@ -385,13 +386,13 @@ app.get('/call-ai', authenticate, async (req, res) => {
     const calls = result.rows[0]?.api_calls ?? 0;
 
     if (API_QUOTA >= 0 && calls >= API_QUOTA) {
-      return res.status(429).json({ message: `API quota exceeded (${calls}/${API_QUOTA})` });
+      return res.status(429).json({ message: `${STRINGS.QUOTA_EXCEEDED} (${calls}/${API_QUOTA})` });
     }
 
     const newCount = await incrementApiCalls(req.user.id);
-    res.json({ message: `AI call successful! (${newCount}/${API_QUOTA} used)` });
+    res.json({ message: `${STRINGS.CALL_SUCCESSFUL} (${newCount}/${API_QUOTA})` });
   } catch (err) {
-    res.status(500).json({ message: 'Database error' });
+    res.status(500).json({ message: STRINGS.DATABASE_ERROR });
   }
 });
 
@@ -401,7 +402,7 @@ app.post('/ai/resume/improve', authenticate, async (req, res) => {
 
 
   const { resume } = req.body;
-  if (!resume) return res.status(400).json({ message: 'Resume text is required' });
+  if (!resume) return res.status(400).json({ message: STRINGS.RESUME_TEXT_REQUIRED });
 
   try {
     // enforce quota and increment api_calls
@@ -409,17 +410,12 @@ app.post('/ai/resume/improve', authenticate, async (req, res) => {
       await checkAndIncrement(req.user.id);
     } catch (err) {
       if (err.code === 'QUOTA_EXCEEDED') {
-        return res.status(429).json({ message: `API quota exceeded (${err.count}/${API_QUOTA})` });
+        return res.status(429).json({ message: `${STRINGS.QUOTA_EXCEEDED} (${err.count}/${API_QUOTA})` });
       }
       throw err;
     }
 
-    //call external AI service
-    if (typeof fetch !== 'function') {
-      return res.status(500).json({ message: 'Server fetch is not available. Install node-fetch or upgrade Node.' });
-    }
-
-    const aiRes = await fetch('https://teamv5.duckdns.org/v1/chat/completions', {
+      const aiRes = await fetch('https://teamv5.duckdns.org/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -435,8 +431,8 @@ app.post('/ai/resume/improve', authenticate, async (req, res) => {
     // Return AI response to the client
     res.status(aiRes.ok ? 200 : 502).json({ ai: aiJson });
   } catch (err) {
-    console.error('AI proxy error:', err);
-    res.status(500).json({ message: 'AI proxy error', error: err.message });
+    console.error(STRINGS.AI_ERROR, err);
+    res.status(500).json({ message: STRINGS.AI_ERROR, error: err.message });
   }
 });
 
@@ -446,13 +442,13 @@ app.post('/ai/leetcode', authenticate, async (req, res) => {
   incrementEndpoint("POST", "/ai/leetcode");
 
   const { prompt } = req.body;
-  if (!prompt) return res.status(400).json({ error: "Prompt is required" });
+  if (!prompt) return res.status(400).json({ error: STRINGS.PROMPT_REQUIRED });
 
   try {
     await checkAndIncrement(req.user.id);
   } catch (err) {
     if (err.code === 'QUOTA_EXCEEDED') {
-      return res.status(429).json({ message: `API quota exceeded (${err.count}/${API_QUOTA})` });
+      return res.status(429).json({ message: `${STRINGS.QUOTA_EXCEEDED} (${err.count}/${API_QUOTA})` });
     }
     throw err;
   }
@@ -475,7 +471,7 @@ app.post('/ai/leetcode', authenticate, async (req, res) => {
 
   } catch (err) {
     console.error("AI LeetCode error:", err);
-    res.status(500).json({ error: "AI error", detail: err.message });
+    res.status(500).json({ error: STRINGS.AI_ERROR, detail: err.message });
   }
 });
 
@@ -493,7 +489,7 @@ app.post('/jobs/search_user', authenticate, async (req, res) => {
     res.status(response.ok ? 200 : 500).json(data);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Internal proxy error" });
+    res.status(500).json({ error: STRINGS.PROXY_ERROR });
   }
 });
 
@@ -506,7 +502,7 @@ app.get('/admin/users', authenticate, async (req, res) => {
     );
 
     if (!adminCheck.rows[0]?.isadmin) {
-      return res.status(403).json({ message: "Admin access required" });
+      return res.status(403).json({ message: STRINGS.ADMIN_REQUIRED });
     }
 
     const result = await pool.query(`
@@ -526,52 +522,9 @@ app.get('/admin/users', authenticate, async (req, res) => {
 
   } catch (err) {
     console.error("ADMIN /admin/users ERROR:", err);
-    res.status(500).json({ message: "Database error" });
+    res.status(500).json({ message: STRINGS.DATABASE_ERROR });
   }
 });
-
-
-// app.use(async (req, res, next) => {
-//   try {
-//     const method = req.method;
-//     const path = req.path; // Raw path
-
-//     // Fetch all endpoint patterns once
-//     const result = await pool.query(`
-//       SELECT id, method, endpoint FROM endpoints
-//     `);
-
-//     let matchedId = null;
-
-//     for (const ep of result.rows) {
-//       if (ep.method !== method) continue;
-
-      
-//       const pattern = ep.endpoint.replace(/:[^/]+/g, "[^/]+");
-//       const regex = new RegExp(`^${pattern}$`);
-
-//       if (regex.test(path)) {
-//         matchedId = ep.id;
-//         break;
-//       }
-//     }
-
-//     if (matchedId) {
-//       await pool.query(
-//         `UPDATE endpoints SET requests = requests + 1 WHERE id = $1`,
-//         [matchedId]
-//       );
-//     }
-
-//   } catch (err) {
-//     console.error("Endpoint tracking error:", err);
-//   }
-
-//   next();
-// });
-
-
-
 
 
 app.get('/admin/endpoints', authenticate, async (req, res) => {
@@ -583,7 +536,7 @@ app.get('/admin/endpoints', authenticate, async (req, res) => {
     );
 
     if (!adminCheck.rows[0]?.isadmin) {
-      return res.status(403).json({ message: "Admin access required" });
+      return res.status(403).json({ message:STRINGS.ADMIN_REQUIRED });
     }
 
     
@@ -597,7 +550,7 @@ app.get('/admin/endpoints', authenticate, async (req, res) => {
 
   } catch (err) {
     console.error("ADMIN /admin/endpoints ERROR:", err);
-    res.status(500).json({ message: "Database error" });
+    res.status(500).json({ message: STRINGS.DATABASE_ERROR });
   }
 });
 
@@ -609,7 +562,7 @@ app.delete('/user/skills', authenticate, async (req, res) => {
   const { skill } = req.body;
 
   if (!skill) {
-    return res.status(400).json({ message: 'Skill is required' });
+    return res.status(400).json({ message: STRINGS.SKILL_REQUIRED });
   }
 
   try {
@@ -622,13 +575,13 @@ app.delete('/user/skills', authenticate, async (req, res) => {
     );
 
     return res.json({
-      message: "Skill deleted successfully",
+      message: STRINGS.SKILL_DELETED,
       skills: result.rows[0].skills || []
     });
 
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Database error" });
+    res.status(500).json({ message: STRINGS.DATABASE_ERROR });
   }
 });
 

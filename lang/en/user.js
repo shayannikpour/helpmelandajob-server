@@ -1,0 +1,23 @@
+export const STRINGS = {
+    ADMIN_REQUIRED: "Admin access required",
+    DATABASE_ERROR: "Database error occurred",
+    ADMIN_STATUS_UPDATED: "Admin status updated successfully",
+    USER_DELETED: "User deleted successfully",
+    USER_CREATED: "User created successfully",
+    USERNAME_TAKEN: "Username is already taken",
+    INVALID_CREDENTIALS: "Invalid username or password",
+    RESUME_TEXT_REQUIRED: "Resume text is required",
+    USER_NOT_FOUND: "User not found",
+    QUOTA_EXCEEDED: "Api quota exceeded", 
+    RESUME_SAVED: "Resume saved successfully",
+    SKILL_REQUIRED: "Skill is required",
+    SKILL_EXISTS: "Skill already exists",
+    SKILL_ADDED: "Skill added successfully",
+    MISSING_TOKEN: "Authentication token is missing",
+    INVALID_TOKEN: "Invalid or expired authentication token",
+    CALL_SUCCESSFUL: "AI call successful!",
+    AI_ERROR: "Error communicating with AI service",
+    PROMPT_REQUIRED: "Prompt is required",
+    PROXY_ERROR: "Error communicating with AI proxy service",
+    SKILL_DELETED: "Skill deleted successfully"
+}
