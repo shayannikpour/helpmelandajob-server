@@ -81,20 +81,32 @@ pool.query(`
 }).catch(err => console.error('Api counter table error', err));
 
 app.delete('/admin/users/:id', authenticate, async (req, res) => {
-  console.log(req.user.isAdmin);
   if (!req.user.isAdmin) {
-  return res.status(403).json({ message: STRINGS.ADMINREQUIRED });
+    return res.status(403).json({ message: STRINGS.ADMINREQUIRED });
   }
+
   const userId = req.params.id;
+
   try {
-    await pool.query('DELETE FROM users WHERE id = $1', [userId]);
+    // delete api_counter entries first
+    await pool.query(
+      'DELETE FROM api_counter WHERE user_id = $1',
+      [userId]
+    );
+
+    // now delete the user
+    await pool.query(
+      'DELETE FROM users WHERE id = $1',
+      [userId]
+    );
+
     res.json({ message: STRINGS.USER_DELETED });
-  }
-  catch (err) {
+  } catch (err) {
     console.error(err);
-    res.status(500).json({ message: STRINGS.DATABASE_ERROR});
+    res.status(500).json({ message: STRINGS.DATABASE_ERROR });
   }
 });
+
 
 app.patch('/admin/users/:id/isAdmin', authenticate, async (req, res) => {
   if (!req.user.isAdmin) {

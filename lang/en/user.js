@@ -4,7 +4,7 @@ export const STRINGS = {
     ADMIN_STATUS_UPDATED: "Admin status updated successfully",
     USER_DELETED: "User deleted successfully",
     USER_CREATED: "User created successfully",
-    USERNAME_TAKEN: "Username is already taken",
+    USERNAME_TAKEN: "Email is already used",
     INVALID_CREDENTIALS: "Invalid username or password",
     RESUME_TEXT_REQUIRED: "Resume text is required",
     USER_NOT_FOUND: "User not found",
