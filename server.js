@@ -137,8 +137,17 @@ app.post('/register', async (req, res) => {
     const hashed = await bcrypt.hash(password, 10);
     await pool.query(
       `INSERT INTO users (username, password, isAdmin)
-       VALUES ($1, $2, $3)`,
+       VALUES ($1, $2, $3)
+       RETURNING id`,
       [username, hashed, isAdmin ? true : false]
+    );
+
+    const userId = userRes.rows[0].id;
+
+    await pool.query(
+      `INSERT INTO api_counter (user_id, api_calls)
+       VALUES ($1, 0)`,
+      [userId]
     );
     res.json({ message: 'User created successfully' });
   } catch (err) {
