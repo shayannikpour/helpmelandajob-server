@@ -102,7 +102,7 @@ app.patch('/admin/users/:id/isAdmin', authenticate, async (req, res) => {
   const userId = req.params.id;
   const { isAdmin } = req.body;
   try {
-    await pool.query('UPDATE users SET isAdmin = $1 WHERE id = $2', [isAdmin, userId]);
+    await pool.query('UPDATE users SET isadmin = $1 WHERE id = $2', [isAdmin, userId]);
     res.json({ message: 'User admin status updated successfully' });
   }
   catch (err) {
@@ -136,7 +136,7 @@ app.post('/register', async (req, res) => {
   try {
     const hashed = await bcrypt.hash(password, 10);
     await pool.query(
-      `INSERT INTO users (username, password, isAdmin)
+      `INSERT INTO users (username, password, isadmin)
        VALUES ($1, $2, $3)
        RETURNING id`,
       [username, hashed, isAdmin ? true : false]
@@ -151,6 +151,7 @@ app.post('/register', async (req, res) => {
     );
     res.json({ message: 'User created successfully' });
   } catch (err) {
+    console.error("REGISTER ERROR:", err);
     if (err.message.includes('duplicate key')) {
       return res.status(400).json({ message: 'Username already exists' });
     }
@@ -494,7 +495,7 @@ app.post('/jobs/search_user', authenticate, async (req, res) => {
 app.get('/admin/users', authenticate, async (req, res) => {
   try {
     const adminCheck = await pool.query(
-      'SELECT isAdmin FROM users WHERE id = $1',
+      'SELECT isadmin FROM users WHERE id = $1',
       [req.user.id]
     );
 
@@ -571,7 +572,7 @@ app.get('/admin/endpoints', authenticate, async (req, res) => {
   try {
     
     const adminCheck = await pool.query(
-      'SELECT isAdmin FROM users WHERE id = $1',
+      'SELECT isadmin FROM users WHERE id = $1',
       [req.user.id]
     );
 
