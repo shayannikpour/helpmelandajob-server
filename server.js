@@ -77,7 +77,7 @@ pool.query(`
   );
    `).then(() => {
     console.log('Api call table ready');
-}).catch(err => console.error('Api call table error', err));
+}).catch(err => console.error('Api counter table error', err));
 
 app.delete('/admin/users/:id', authenticate, async (req, res) => {
   console.log(req.user.isAdmin);
@@ -135,7 +135,9 @@ app.post('/register', async (req, res) => {
 
   try {
     const hashed = await bcrypt.hash(password, 10);
-    await pool.query(
+
+    // Store the result of the INSERT
+    const userRes = await pool.query(
       `INSERT INTO users (username, password, isadmin)
        VALUES ($1, $2, $3)
        RETURNING id`,
@@ -144,12 +146,15 @@ app.post('/register', async (req, res) => {
 
     const userId = userRes.rows[0].id;
 
+    // Create the api_counter row
     await pool.query(
       `INSERT INTO api_counter (user_id, api_calls)
        VALUES ($1, 0)`,
       [userId]
     );
+
     res.json({ message: 'User created successfully' });
+
   } catch (err) {
     console.error("REGISTER ERROR:", err);
     if (err.message.includes('duplicate key')) {
@@ -158,6 +163,7 @@ app.post('/register', async (req, res) => {
     res.status(500).json({ message: 'Database error', error: err.message });
   }
 });
+
 
 // Login
 app.post('/login', async (req, res) => {
