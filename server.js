@@ -5,7 +5,7 @@ const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
-const cookieParser = require('cookie-parser');
+// const cookieParser = require('cookie-parser');
 
 
 const app = express();
@@ -15,9 +15,10 @@ const SECRET = process.env.SECRET;
 const API_QUOTA = 20;
 
 app.use(cors({ origin: '*', credentials: true }));
+// app.use(cors({ origin: 'https://helpmelandajob.onrender.com/', credentials: true }));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(cookieParser());
+// app.use(cookieParser());
 app.use(express.json());
 
 // Setup PostgreSQL
@@ -37,7 +38,7 @@ pool.query(`
     id SERIAL PRIMARY KEY,
     isadmin BOOLEAN DEFAULT false,
     username TEXT UNIQUE,
-    password TEXT,
+    password TEXT
   );
 `).then(() => {
   console.log('Users table ready');
@@ -69,9 +70,9 @@ pool.query(`
 }).catch(err => console.error('Endpoints table error', err));
 
 pool.query(`
-  CREATE TABLE IF NOT EXISTS api_calls (
+  CREATE TABLE IF NOT EXISTS api_counter (
     id SERIAL PRIMARY KEY,
-    FOREIGN KEY user_id INTEGER REFERENCES users(id),
+    user_id INTEGER REFERENCES users(id),
     api_calls INTEGER DEFAULT 0
   );
    `).then(() => {
@@ -135,8 +136,8 @@ app.post('/register', async (req, res) => {
   try {
     const hashed = await bcrypt.hash(password, 10);
     await pool.query(
-      `INSERT INTO users (username, password, api_calls, isAdmin)
-       VALUES ($1, $2, 0, $3)`,
+      `INSERT INTO users (username, password, isAdmin)
+       VALUES ($1, $2, $3)`,
       [username, hashed, isAdmin ? true : false]
     );
     res.json({ message: 'User created successfully' });
@@ -186,8 +187,6 @@ app.post('/login', async (req, res) => {
 app.post('/user/resume', authenticate, async (req, res) => {
   incrementEndpoint("POST", "/user/resume");
 
-
-
   const username = req.user.username;
   const { resume } = req.body;
 
@@ -197,7 +196,7 @@ app.post('/user/resume', authenticate, async (req, res) => {
 
   try {
     // enforce quota and increment (saving resume counts as an action)
-    const selectRes = await pool.query('SELECT id, api_calls FROM users WHERE username = $1', [username]);
+    const selectRes = await pool.query('SELECT id FROM users WHERE username = $1', [username]);
     const userId = selectRes.rows[0]?.id;
     if (!userId) return res.status(404).json({ message: 'User not found' });
 
@@ -241,7 +240,8 @@ app.get('/user/api_calls', authenticate, async (req, res) => {
   const username = req.user.username;
 
   try {
-    const result = await pool.query('SELECT api_calls FROM users WHERE username = $1', [username]);
+    const result = await pool.query(
+      'SELECT api_calls FROM api_counter JOIN users ON api_counter.user_id = users.id WHERE username = $1', [username]);
     const api_calls = Number(result.rows[0]?.api_calls ?? 0);
     res.json({ api_calls });
   } catch (err) {
@@ -327,11 +327,11 @@ function authenticate(req, res, next) {
   });
 }
 
-// Helper to increment a user's api_calls counter and return the updated count
+//increment user's api_calls counter and return the updated count
 async function incrementApiCalls(userId) {
   try {
     const result = await pool.query(
-      'UPDATE users SET api_calls = COALESCE(api_calls, 0) + 1 WHERE id = $1 RETURNING api_calls',
+      'UPDATE api_counter SET api_calls = COALESCE(api_calls, 0) + 1 WHERE user_id = $1 RETURNING api_calls',
       [userId]
     );
     return result.rows[0]?.api_calls ?? null;
@@ -341,10 +341,10 @@ async function incrementApiCalls(userId) {
   }
 }
 
-// Check quota then increment; throws an error with code 'QUOTA_EXCEEDED' if over limit
+//check quota then increment
 async function checkAndIncrement(userId) {
   try {
-    const cur = await pool.query('SELECT api_calls FROM users WHERE id = $1', [userId]);
+    const cur = await pool.query('SELECT api_calls FROM api_counter WHERE id = $1', [userId]);
     const calls = cur.rows[0]?.api_calls ?? 0;
     if (API_QUOTA >= 0 && calls >= API_QUOTA) {
       const err = new Error('API quota exceeded');
@@ -358,15 +358,14 @@ async function checkAndIncrement(userId) {
   }
 }
 
-// Verify token route
+//verify token route
 app.get('/verify-token', authenticate, (req, res) => {
   res.json({ username: req.user.username });
 });
 
-// Example API route
 app.get('/call-ai', authenticate, async (req, res) => {
   try {
-    const result = await pool.query('SELECT api_calls FROM users WHERE id = $1', [req.user.id]);
+    const result = await pool.query('SELECT api_calls FROM api_counter WHERE user_id = $1', [req.user.id]);
     const calls = result.rows[0]?.api_calls ?? 0;
 
     if (API_QUOTA >= 0 && calls >= API_QUOTA) {
@@ -380,7 +379,7 @@ app.get('/call-ai', authenticate, async (req, res) => {
   }
 });
 
-// AI resume improvement proxy endpoint
+//AI resume improve endpoint
 app.post('/ai/resume/improve', authenticate, async (req, res) => {
   incrementEndpoint("POST", "/ai/resume/improve");
 
@@ -399,7 +398,7 @@ app.post('/ai/resume/improve', authenticate, async (req, res) => {
       throw err;
     }
 
-    // Call external AI service
+    //call external AI service
     if (typeof fetch !== 'function') {
       return res.status(500).json({ message: 'Server fetch is not available. Install node-fetch or upgrade Node.' });
     }
@@ -495,9 +494,16 @@ app.get('/admin/users', authenticate, async (req, res) => {
     }
 
     const result = await pool.query(`
-      SELECT id, username, api_calls, isadmin
+      SELECT 
+        users.id,
+        users.username,
+        COALESCE(api_counter.api_calls, 0) AS api_calls,
+        users.isadmin
       FROM users
-      ORDER BY username ASC
+      LEFT JOIN api_counter
+        ON api_counter.user_id = users.id
+      ORDER BY users.username ASC;
+
     `);
 
     res.json({ users: result.rows });
