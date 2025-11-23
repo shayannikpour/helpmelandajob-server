@@ -85,6 +85,8 @@ app.delete('/admin/users/:id', authenticate, async (req, res) => {
     return res.status(403).json({ message: STRINGS.ADMINREQUIRED });
   }
 
+  incrementEndpoint("DELETE", "/admin/users/:id");
+
   const userId = req.params.id;
 
   try {
@@ -112,6 +114,9 @@ app.patch('/admin/users/:id/isAdmin', authenticate, async (req, res) => {
   if (!req.user.isAdmin) {
     return res.status(403).json({ message: STRINGS.ADMIN_REQUIRED });
   }
+
+  incrementEndpoint("PATCH", "/admin/users/:id/isAdmin");
+  
   const userId = req.params.id;
   const { isAdmin } = req.body;
   try {
