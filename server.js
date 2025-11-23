@@ -1,4 +1,4 @@
-import { STRINGS } from "../lang/en/user.js"
+import { STRINGS } from "lang/en/user.js"
 const express = require('express');
 const bodyParser = require('body-parser');
 const bcrypt = require('bcryptjs');
